@@ -46,8 +46,8 @@ sudo apt install wireguard resolvconf netfilter-persistent dnsmasq -y
 ```
 
 ### 2. Get Mullvad WireGuard Config
-- Go to https://mullvad.net/account
-- Under WireGuard Configuration, choose:
+Go to https://mullvad.net/account
+Under WireGuard Configuration, choose:
  - Platform: Linux
  - Location: e.g., USA > Raleigh
  - Server: pick 1 server
@@ -56,8 +56,8 @@ sudo apt install wireguard resolvconf netfilter-persistent dnsmasq -y
  - Port: 51820
  - Use IP addresses: ✅ Yes
  - Content Blocking: Optional
-- Click Generate
-- Download the zip file then extract```bash
+Click Generate
+Download the zip file then extract```bash
 
 
 
