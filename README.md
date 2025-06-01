@@ -56,8 +56,9 @@ Under WireGuard Configuration, choose:
  - Port: 51820
  - Use IP addresses: ✅ Yes
  - Content Blocking: Optional
+
 Click Generate
-Download the zip file then extract```bash
+Download the zip file then extract
 
 
 
