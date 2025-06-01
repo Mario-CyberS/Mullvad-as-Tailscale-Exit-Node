@@ -58,6 +58,7 @@ Under WireGuard Configuration, choose:
  - Content Blocking: Optional
 
 Click Generate
+
 Download the zip file then extract
 
 
