@@ -351,5 +351,8 @@ This setup now:
 - Routes all PC outbound traffic through Mullvad VPN
 - Keeps DNS locked and avoids Tailscale overwrites
 
+---
 
+### 👨‍💻 Author
+Mario Tagaras | Cyber Security Specialist
 
