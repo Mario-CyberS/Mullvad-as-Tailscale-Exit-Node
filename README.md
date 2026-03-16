@@ -281,37 +281,63 @@ First on the Tailscale ACLs Dashboard enable Tailscale ssh.
 Then we want to update our ACLs on the Tailscale dashboard:
 ```bash
 {
-	"acls": [
-		{
-			"action": "accept",
-			"src":    ["Mario-CyberS@github"],
-			"dst":    ["tag:home:3389"],
-		},
-		{
-			"action": "accept",
-			"src":    ["Mario-CyberS@github"],
-			"dst":    ["tag:relay-node:*"],
-		},
-		{
-			"action": "accept",
-			"src":    ["tag:home"],
-			"dst":    ["tag:relay-node:*"],
-		},
-	],
-	"tagOwners": {
-		"tag:home":       ["Mario-CyberS@github"],
-		"tag:relay-node": ["Mario-CyberS@github"],
-	},
-	"ssh": [
-		// The default SSH policy, which lets users SSH into devices they own.
-		// Learn more at https://tailscale.com/kb/1193/tailscale-ssh/
-		{
-			"action": "accept",
-			"src":    ["Mario-CyberS@github"],
-			"dst":    ["tag:relay-node"],
-			"users":  ["root", "owner"],
-		},
-	],
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["Mario-CyberS@github"],
+      "dst": ["tag:home:3389"]
+    },
+    {
+      "action": "accept",
+      "src": ["Mario-CyberS@github"],
+      "dst": ["tag:relay-node:22"]
+    }
+  ],
+
+  "tagOwners": {
+    "tag:home": ["Mario-CyberS@github"],
+    "tag:relay-node": ["Mario-CyberS@github"]
+  },
+
+  "ssh": [
+    {
+      "action": "accept",
+      "src": ["Mario-CyberS@github"],
+      "dst": ["tag:relay-node"],
+      "users": ["owner"]
+    },
+    {
+      "action": "check",
+      "src": ["Mario-CyberS@github"],
+      "dst": ["tag:relay-node"],
+      "users": ["root"],
+      "checkPeriod": "12h"
+    }
+  ],
+
+  "tests": [
+    {
+      "src": "Mario-CyberS@github",
+      "proto": "tcp",
+      "accept": ["tag:home:3389", "tag:relay-node:22"],
+      "deny": [
+        "tag:home:22",
+        "tag:relay-node:80",
+        "tag:relay-node:443",
+        "tag:relay-node:3389"
+      ]
+    }
+  ],
+
+  "sshTests": [
+    {
+      "src": "Mario-CyberS@github",
+      "dst": ["tag:relay-node"],
+      "accept": ["owner"],
+      "check": ["root"],
+      "deny": ["pi", "ubuntu", "admin"]
+    }
+  ]
 }
 ```
 Next on your Pi run this:
