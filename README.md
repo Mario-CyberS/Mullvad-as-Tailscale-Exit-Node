@@ -167,18 +167,6 @@ Test DNS:
 dig google.com @127.0.0.1
 dig tailnet-name.ts.net @127.0.0.1
 ```
-Step 5: Block All Other DNS Attempts from PC
-This prevents DNS leaks:
-```bash
-# Allow PC to use Pi for DNS
-sudo iptables -A FORWARD -i eth1 -p udp --dport 53 -j ACCEPT
-sudo iptables -A FORWARD -i eth1 -p tcp --dport 53 -j ACCEPT
-# Drop any other DNS (from PC to internet)
-sudo iptables -A FORWARD -p udp --dport 53 -j DROP
-sudo iptables -A FORWARD -p tcp --dport 53 -j DROP
-# Save
-sudo netfilter-persistent save
-```
 
 ### 5. Enable IP Forwarding
 ```bash
