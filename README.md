@@ -105,6 +105,7 @@ listen-address=127.0.0.1,192.168.50.1
 dhcp-range=192.168.50.10,192.168.50.100,12h
 dhcp-option=option:router,192.168.50.1
 dhcp-option=option:dns-server,192.168.50.1
+dhcp-host=**:**:**:**:**:**,192.168.50.10
 
 # ===== DNS behavior =====
 no-resolv
@@ -195,68 +196,87 @@ sudo sysctl -p
 
 ### 6. Apply iptables Rules (Before VPN Up)
 ```bash
-# Flush existing rules
-sudo iptables -F
-sudo iptables -t nat -F
-sudo iptables -X
+sudo nano /usr/local/sbin/apply-gateway-firewall.sh
+```
+```bash
+#!/bin/bash
+set -e
+
+LAN_IF="eth1"
+VPN_IF="mullvad"
+TS_IF="tailscale0"
+
+PC_IP="192.168.50.10"
+PI_LAN_IP="192.168.50.1"
+LAN_SUBNET="192.168.50.0/24"
+TS_CGNAT="100.64.0.0/10"
+
+# Flush old rules
+iptables -F
+iptables -X
+iptables -t nat -F
+iptables -t nat -X
+iptables -t mangle -F
+iptables -t mangle -X
 
 # Default policies
-sudo iptables -P FORWARD DROP
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
 
-# Create Tailscale chains
-sudo iptables -N ts-forward
-sudo iptables -N ts-input
-sudo iptables -N ts-postrouting
+# INPUT
 
-# Hook into default chains
-sudo iptables -A INPUT -j ts-input
-sudo iptables -A FORWARD -j ts-forward
-sudo iptables -t nat -A POSTROUTING -j ts-postrouting
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -p icmp -j ACCEPT
+iptables -A INPUT -p udp --dport 41641 -j ACCEPT
+iptables -A INPUT -i "$TS_IF" -j ACCEPT
 
-# Allow related & established connections
-sudo iptables -A FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+# DNS to Pi from LAN
+iptables -A INPUT -i "$LAN_IF" -s "$LAN_SUBNET" -d "$PI_LAN_IP" -p udp --dport 53 -j ACCEPT
+iptables -A INPUT -i "$LAN_IF" -s "$LAN_SUBNET" -d "$PI_LAN_IP" -p tcp --dport 53 -j ACCEPT
 
-# Allow PC to send DNS to Pi (eth1)
-sudo iptables -A FORWARD -i eth1 -p udp --dport 53 -j ACCEPT
-sudo iptables -A FORWARD -i eth1 -p tcp --dport 53 -j ACCEPT
+# DHCP to Pi
+iptables -A INPUT -i "$LAN_IF" -p udp --sport 68 --dport 67 -j ACCEPT
 
-# Drop any other DNS traffic to prevent leaks
-sudo iptables -A FORWARD -p udp --dport 53 -j DROP
-sudo iptables -A FORWARD -p tcp --dport 53 -j DROP
+# Optional OpenSSH on Pi only over Tailscale
+iptables -A INPUT -i "$TS_IF" -p tcp --dport 22 -j ACCEPT
 
-# Allow PC traffic to Mullvad
-sudo iptables -A FORWARD -i eth1 -o mullvad -j ACCEPT
-sudo iptables -A FORWARD -i mullvad -o eth1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+# FORWARD
 
-# Allow Tailscale traffic to Mullvad
-sudo iptables -A FORWARD -i tailscale0 -o mullvad -j ACCEPT
-sudo iptables -A FORWARD -i mullvad -o tailscale0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
-# Allow RDP from Mac (Tailscale) to PC
-sudo iptables -A FORWARD -i tailscale0 -o eth1 -p tcp --dport 3389 -j ACCEPT
-sudo iptables -A FORWARD -i eth1 -o tailscale0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+# Only allow LAN subnet from eth1
+iptables -A FORWARD -i "$LAN_IF" ! -s "$LAN_SUBNET" -j DROP
 
-# Drop all other traffic from PC
-sudo iptables -A FORWARD -i eth1 -j DROP
+# Block direct DNS leaks from LAN clients to internet
+iptables -A FORWARD -i "$LAN_IF" -s "$LAN_SUBNET" -p udp --dport 53 -j REJECT
+iptables -A FORWARD -i "$LAN_IF" -s "$LAN_SUBNET" -p tcp --dport 53 -j REJECT
 
-# Tailscale-specific rules
-sudo iptables -A ts-forward -i tailscale0 -j MARK --set-xmark 0x40000/0xff0000
-sudo iptables -A ts-forward -m mark --mark 0x40000/0xff0000 -j ACCEPT
-sudo iptables -A ts-forward -s 100.64.0.0/10 -o tailscale0 -j DROP
-sudo iptables -A ts-forward -o tailscale0 -j ACCEPT
-sudo iptables -A ts-input -s 100.92.48.7/32 -i lo -j ACCEPT
-sudo iptables -A ts-input -s 100.115.92.0/23 ! -i tailscale0 -j RETURN
-sudo iptables -A ts-input -s 100.64.0.0/10 ! -i tailscale0 -j DROP
-sudo iptables -A ts-input -i tailscale0 -j ACCEPT
-sudo iptables -A ts-input -p udp --dport 41641 -j ACCEPT
+# Allow LAN web traffic out via Mullvad
+iptables -A FORWARD -i "$LAN_IF" -s "$LAN_SUBNET" -o "$VPN_IF" -p tcp --dport 443 -j ACCEPT
+iptables -A FORWARD -i "$LAN_IF" -s "$LAN_SUBNET" -o "$VPN_IF" -p tcp --dport 80 -j ACCEPT
+iptables -A FORWARD -i "$LAN_IF" -s "$LAN_SUBNET" -o "$VPN_IF" -p udp --dport 123 -j ACCEPT
 
-# NAT rules for Mullvad routing
-sudo iptables -t nat -A POSTROUTING -s 192.168.50.0/24 -o mullvad -j MASQUERADE
-sudo iptables -t nat -A POSTROUTING -s 100.0.0.0/8 -o mullvad -j MASQUERADE
-sudo iptables -t nat -A ts-postrouting -m mark --mark 0x40000/0xff0000 -j MASQUERADE
+# Allow Tailscale to reach the PC for subnet-routed RDP if needed
+iptables -A FORWARD -i "$TS_IF" -o "$LAN_IF" -d "$PC_IP" -p tcp --dport 3389 -j ACCEPT
+iptables -A FORWARD -i "$TS_IF" -o "$LAN_IF" -d "$PC_IP" -p icmp -j ACCEPT
 
-# Save rules persistently
-sudo netfilter-persistent save 
+# Log/drop remaining LAN forwards
+iptables -A FORWARD -i "$LAN_IF" -s "$LAN_SUBNET" -m limit --limit 5/min --limit-burst 10 -j LOG --log-prefix "FW_DROP_LAN: " --log-level 4
+iptables -A FORWARD -i "$LAN_IF" -s "$LAN_SUBNET" -j DROP
+
+iptables -A FORWARD -m limit --limit 5/min --limit-burst 10 -j LOG --log-prefix "FW_DROP_OTHER: " --log-level 4
+iptables -A FORWARD -j DROP
+
+# NAT
+
+iptables -t nat -A POSTROUTING -s "$LAN_SUBNET" -o "$VPN_IF" -j MASQUERADE
+iptables -t nat -A POSTROUTING -s "$TS_CGNAT" -o "$VPN_IF" -j MASQUERADE
+```
+```bash
+sudo /usr/local/sbin/apply-gateway-firewall.sh 
+sudo netfilter-persistent save
 ```
 Inspect current rules:
 ```bash
