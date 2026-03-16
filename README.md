@@ -96,16 +96,33 @@ sudo nano /etc/dnsmasq.conf
 ```
 At the bottom, add:
 ```bash
-# Serve DHCP to PC
+# ===== LAN service on eth1 =====
 interface=eth1
+bind-interfaces
+listen-address=127.0.0.1,192.168.50.1
+
+# ===== DHCP for Windows PC / LAN =====
 dhcp-range=192.168.50.10,192.168.50.100,12h
-# DNS Settings: Split-DNS
-server=/ts.net/100.100.100.100      # Tailscale DNS
-server=10.64.0.1                    # Mullvad DNS resolver
-# (Optional fallback)
-server=8.8.8.8
-server=1.1.1.1
-listen-address=127.0.0.1
+dhcp-option=option:router,192.168.50.1
+dhcp-option=option:dns-server,192.168.50.1
+
+# ===== DNS behavior =====
+no-resolv
+domain-needed
+bogus-priv
+
+# Tailscale MagicDNS / tailnet names
+server=/ts.net/100.100.100.100
+
+# Everything else through Mullvad resolver
+server=10.64.0.1
+
+# ===== Logging (optional, useful for debugging) =====
+log-queries
+log-dhcp
+
+# ===== Cache =====
+cache-size=1000
 ```
 Explanation:
 PC gets DHCP and DNS from the Pi on eth1
