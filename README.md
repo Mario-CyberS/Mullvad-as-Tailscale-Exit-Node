@@ -309,31 +309,31 @@ Then we want to update our ACLs on the Tailscale dashboard:
   "acls": [
     {
       "action": "accept",
-      "src": ["Mario-CyberS@github"],
+      "src": ["User@github"],
       "dst": ["tag:home:3389"]
     },
     {
       "action": "accept",
-      "src": ["Mario-CyberS@github"],
+      "src": ["User@github"],
       "dst": ["tag:relay-node:22"]
     }
   ],
 
   "tagOwners": {
-    "tag:home": ["Mario-CyberS@github"],
-    "tag:relay-node": ["Mario-CyberS@github"]
+    "tag:home": ["User@github"],
+    "tag:relay-node": ["User@github"]
   },
 
   "ssh": [
     {
       "action": "accept",
-      "src": ["Mario-CyberS@github"],
+      "src": ["User@github"],
       "dst": ["tag:relay-node"],
       "users": ["owner"]
     },
     {
       "action": "check",
-      "src": ["Mario-CyberS@github"],
+      "src": ["User@github"],
       "dst": ["tag:relay-node"],
       "users": ["root"],
       "checkPeriod": "12h"
@@ -342,7 +342,7 @@ Then we want to update our ACLs on the Tailscale dashboard:
 
   "tests": [
     {
-      "src": "Mario-CyberS@github",
+      "src": "User@github",
       "proto": "tcp",
       "accept": ["tag:home:3389", "tag:relay-node:22"],
       "deny": [
@@ -356,13 +356,76 @@ Then we want to update our ACLs on the Tailscale dashboard:
 
   "sshTests": [
     {
-      "src": "Mario-CyberS@github",
+      "src": "User@github",
       "dst": ["tag:relay-node"],
       "accept": ["owner"],
       "check": ["root"],
       "deny": ["pi", "ubuntu", "admin"]
     }
   ]
+}
+```
+Convert to Grants:
+```bash
+{
+	"tagOwners": {
+		"tag:home":       ["User@github"],
+		"tag:relay-node": ["User@github"],
+	},
+
+	"ssh": [
+		{
+			"action": "accept",
+			"src":    ["User@github"],
+			"dst":    ["tag:relay-node"],
+			"users":  ["owner"],
+		},
+		{
+			"action":      "check",
+			"src":         ["User@github"],
+			"dst":         ["tag:relay-node"],
+			"users":       ["root"],
+			"checkPeriod": "12h",
+		},
+	],
+
+	"tests": [
+		{
+			"src":    "User@github",
+			"proto":  "tcp",
+			"accept": ["tag:home:3389", "tag:relay-node:22"],
+
+			"deny": [
+				"tag:home:22",
+				"tag:relay-node:80",
+				"tag:relay-node:443",
+				"tag:relay-node:3389",
+			],
+		},
+	],
+
+	"sshTests": [
+		{
+			"src":    "User@github",
+			"dst":    ["tag:relay-node"],
+			"accept": ["owner"],
+			"check":  ["root"],
+			"deny":   ["pi", "ubuntu", "admin"],
+		},
+	],
+
+	"grants": [
+		{
+			"src": ["User@github"],
+			"dst": ["tag:home"],
+			"ip":  ["3389"],
+		},
+		{
+			"src": ["User@github"],
+			"dst": ["tag:relay-node"],
+			"ip":  ["22"],
+		},
+	],
 }
 ```
 Next on your Pi run this:
